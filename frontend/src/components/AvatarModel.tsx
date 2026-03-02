@@ -5,22 +5,23 @@ import * as THREE from 'three';
 import { usePhonemeSync } from '../hooks/usePhonemeSync';
 import { IdleAnimationSystem } from '../systems/IdleAnimationSystem';
 import type { PhonemeFrame } from '../types/phoneme.types';
+import type { ConversationState } from '../systems/ConversationStateMachine';
 
 // IMPORTANT: Requires physical avatar.glb presence in <public/avatars/avatar.glb> to circumvent network cross-domain limits
 const MODEL_URL = '/avatars/avatar.glb';
 
 interface AvatarModelProps {
     phonemes: PhonemeFrame[];
-    isPlayingAudio: boolean;
+    appState: ConversationState;
     getAudioTime: () => number;
 }
 
-export const AvatarModel: React.FC<AvatarModelProps> = ({ phonemes, isPlayingAudio, getAudioTime }) => {
+export const AvatarModel: React.FC<AvatarModelProps> = ({ phonemes, appState, getAudioTime }) => {
     // Drei's useGLTF efficiently handles caching and suspense wrappers implicitly
     const { scene } = useGLTF(MODEL_URL) as any;
 
     const [skinnedMesh, setSkinnedMesh] = useState<THREE.SkinnedMesh | null>(null);
-    const { initAvatarMesh, pushPhonemes, updateSync, clearQueue } = usePhonemeSync(isPlayingAudio, getAudioTime);
+    const { initAvatarMesh, pushPhonemes, updateSync, clearQueue } = usePhonemeSync(appState, getAudioTime);
 
     const idleSystemRef = useRef<IdleAnimationSystem | null>(null);
 
@@ -72,7 +73,7 @@ export const AvatarModel: React.FC<AvatarModelProps> = ({ phonemes, isPlayingAud
     useFrame((_state, delta) => {
         updateSync(delta);
         if (idleSystemRef.current) {
-            idleSystemRef.current.update(delta, isPlayingAudio);
+            idleSystemRef.current.update(delta, appState);
         }
     });
 

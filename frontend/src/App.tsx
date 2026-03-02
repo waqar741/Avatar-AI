@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useAudioStream } from './hooks/useAudioStream';
 import { useMicrophone } from './hooks/useMicrophone';
@@ -8,15 +8,46 @@ import { StatusIndicator } from './components/StatusIndicator';
 import { PhonemeFrame } from './types/phoneme.types';
 import { ServerMessage } from './types/socket.types';
 
-// Enforce single connection pointing directly to FastAPI Uvicorn backend natively
+// Orchestration Layer
+import { ConversationStateMachine, ConversationState } from './systems/ConversationStateMachine';
+import { SpeakingCoordinator } from './systems/SpeakingCoordinator';
+import { PerformanceMonitor } from './utils/performance';
+
 const WS_URL = 'ws://localhost:8000/ws/avatar';
 
 function App() {
   const [transcript, setTranscript] = useState<string>("");
   const [phonemes, setPhonemes] = useState<PhonemeFrame[]>([]);
-  const { isPlaying, pushAudioChunk, stopAudio, getContextTime } = useAudioStream();
+  const [appState, setAppState] = useState<ConversationState>('DISCONNECTED');
+  const [wsErrorMessage, setWsErrorMessage] = useState<string | undefined>();
 
-  // Track continuous narrative externally bypassing WebSocket state loops
+  // 1. Single source of Truth Models
+  const stateMachine = useMemo(() => new ConversationStateMachine(), []);
+  const perfMonitor = useMemo(() => new PerformanceMonitor(), []);
+
+  // Sync React State natively with State Machine class bounding renders securely
+  useEffect(() => {
+    const unsubscribe = stateMachine.subscribe((state) => {
+      setAppState(state);
+    });
+    perfMonitor.start();
+
+    return () => {
+      unsubscribe();
+      perfMonitor.stop();
+    };
+  }, [stateMachine, perfMonitor]);
+
+  // Audio subsystem Hooks
+  const { pushAudioChunk, stopAudio, getContextTime } = useAudioStream();
+
+  // 2. Speaking Coordinator Mapping Latency
+  const coordinator = useMemo(() => new SpeakingCoordinator({
+    stateMachine,
+    onStartSpeaking: () => { },
+    onStopSpeaking: () => { },
+  }), [stateMachine]);
+
   const appendTranscript = useCallback((text: string) => {
     setTranscript(prev => prev + text);
   }, []);
@@ -27,79 +58,109 @@ function App() {
         if (msg.content) appendTranscript(msg.content);
         break;
       case 'audio_chunk':
-        if (msg.data) pushAudioChunk(msg.data);
+        if (msg.data) {
+          pushAudioChunk(msg.data);
+          coordinator.notifyAudioChunkReceived(); // Early Latency Switch (THINKING -> SPEAKING)
+        }
         break;
       case 'phoneme':
-        if (msg.frames) setPhonemes(msg.frames);
-        break;
-      case 'error':
-        console.error("Backend pipeline error:", msg.message);
-        // Do not crash the UI immediately, attempt recovery through reconnects
+        if (msg.frames) setPhonemes(prev => [...prev, ...msg.frames]);
         break;
       case 'audio_done':
+        coordinator.notifyAudioDone();
+        break;
       case 'phoneme_done':
-      case 'done':
-      case 'heartbeat':
+        coordinator.notifyPhonemesDone();
+        break;
+      case 'error':
+        console.error("Backend Error:", msg.message);
+        setWsErrorMessage(msg.message);
         break;
     }
-  }, [appendTranscript, pushAudioChunk]);
+  }, [appendTranscript, pushAudioChunk, coordinator]);
 
-  const { isConnected, error: wsError, sendMessage } = useWebSocket({
+  const handleStatusChange = useCallback((status: 'connecting' | 'connected' | 'disconnected' | 'error') => {
+    switch (status) {
+      case 'connecting': stateMachine.safeTransition('CONNECTING'); break;
+      case 'connected':
+        stateMachine.safeTransition('IDLE');
+        setWsErrorMessage(undefined);
+        break;
+      case 'disconnected': stateMachine.safeTransition('DISCONNECTED'); break;
+      case 'error': stateMachine.forceErrorState(); break;
+    }
+  }, [stateMachine]);
+
+  const { sendMessage } = useWebSocket({
     url: WS_URL,
     onMessage: handleWebSocketMessage,
+    onStatusChange: handleStatusChange
   });
 
-  // Attach Microphone constraints mapping natively bound triggers
-  const handleVoiceInput = useCallback((text: string) => {
-    if (text.trim()) {
-      setTranscript(prev => prev + `\n\nYou: ${text}\nAvatar: `);
-      sendMessage({ type: 'chat', message: text });
-      // Stop lingering responses before pushing new intent
-      stopAudio();
-      setPhonemes([]);
-    }
-  }, [sendMessage, stopAudio]);
-
-  const { isListening, isSupported, interimText, startListening, stopListening } = useMicrophone(handleVoiceInput);
-
-  const handleTextMessage = useCallback((text: string) => {
-    setTranscript(prev => prev + `\n\nYou: ${text}\nAvatar: `);
-    sendMessage({ type: 'chat', message: text });
+  // 3. User Interactions & Interruption Mapping
+  const interruptAvatar = useCallback(() => {
     stopAudio();
     setPhonemes([]);
-  }, [sendMessage, stopAudio]);
+    coordinator.interruptAndClear();
+  }, [stopAudio, coordinator]);
 
-  // Determine structural view states implicitly mapping combinations
-  const determineStatus = () => {
-    if (wsError) return 'error';
-    if (!isConnected) return 'disconnected';
-    if (isListening) return 'listening';
-    if (isPlaying) return 'speaking';
+  const commitChatIntent = useCallback((text: string) => {
+    if (!text.trim()) return;
+
+    interruptAvatar(); // Violent halt to existing responses
+
+    setTranscript(prev => prev + `\n\nYou: ${text}\nAvatar: `);
+    stateMachine.safeTransition('THINKING'); // Instant Intelligence Feedback (Head switch natively responds)
+
+    sendMessage({ type: 'chat', message: text });
+  }, [interruptAvatar, stateMachine, sendMessage]);
+
+  // Microphone Hook
+  const { isListening, isSupported, interimText, startListening, stopListening } = useMicrophone(commitChatIntent);
+
+  // Reflect strictly into StateMachine on manual UI changes
+  useEffect(() => {
+    if (isListening && appState === 'IDLE') {
+      stateMachine.safeTransition('LISTENING');
+    } else if (!isListening && appState === 'LISTENING') {
+      stateMachine.safeTransition('IDLE'); // Should be overridden by THINKING immediately in commitChatIntent normally
+    }
+  }, [isListening, appState, stateMachine]);
+
+  // Derive explicit UI status strings for display overlays
+  const deriveStatusLabel = (): 'error' | 'disconnected' | 'listening' | 'speaking' | 'connected' => {
+    if (appState === 'ERROR') return 'error';
+    if (appState === 'DISCONNECTED') return 'disconnected';
+    if (appState === 'LISTENING') return 'listening';
+    if (appState === 'SPEAKING') return 'speaking';
     return 'connected';
   };
 
   return (
     <div className="w-full h-full bg-[#121212] flex items-center justify-center p-4">
       <StatusIndicator
-        status={determineStatus()}
-        errorMessage={wsError || (!isSupported ? "Microphone APIs restricted by browser" : undefined)}
+        status={deriveStatusLabel()}
+        errorMessage={appState === 'ERROR' ? (wsErrorMessage || "Connection Lost") : (!isSupported ? "Microphone APIs restricted" : undefined)}
       />
 
-      {/* 3D Context Boundary */}
+      {/* 3D Context Bounds */}
       <div className="w-full max-w-6xl h-full max-h-[900px] relative">
         <AvatarCanvas
           phonemes={phonemes}
-          isPlayingAudio={isPlaying}
+          appState={appState}
           getAudioTime={getContextTime}
         />
 
         <ChatUI
           transcript={transcript}
-          isListening={isListening}
+          isListening={appState === 'LISTENING'}
           interimText={interimText}
-          onStartMic={startListening}
+          onStartMic={() => {
+            interruptAvatar();
+            startListening();
+          }}
           onStopMic={stopListening}
-          onSendMessage={handleTextMessage}
+          onSendMessage={commitChatIntent}
         />
       </div>
     </div>

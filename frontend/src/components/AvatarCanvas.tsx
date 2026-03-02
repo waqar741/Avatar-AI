@@ -4,9 +4,11 @@ import { Environment, ContactShadows } from '@react-three/drei';
 import { AvatarModel } from './AvatarModel';
 import type { PhonemeFrame } from '../types/phoneme.types';
 
+import type { ConversationState } from '../systems/ConversationStateMachine';
+
 interface AvatarCanvasProps {
     phonemes: PhonemeFrame[];
-    isPlayingAudio: boolean;
+    appState: ConversationState;
     getAudioTime: () => number;
 }
 
@@ -17,7 +19,7 @@ const LoadingFallback: React.FC = () => (
     </mesh>
 );
 
-export const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ phonemes, isPlayingAudio, getAudioTime }) => {
+export const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ phonemes, appState, getAudioTime }) => {
     return (
         <div className="w-full h-full relative overflow-hidden bg-black/20 rounded-xl border border-white/10 shadow-lg">
             <Canvas camera={{ position: [0, 0, 1.5], fov: 40 }} dpr={[1, 2]}>
@@ -28,7 +30,7 @@ export const AvatarCanvas: React.FC<AvatarCanvasProps> = ({ phonemes, isPlayingA
                 <Suspense fallback={<LoadingFallback />}>
                     <AvatarModel
                         phonemes={phonemes}
-                        isPlayingAudio={isPlayingAudio}
+                        appState={appState}
                         getAudioTime={getAudioTime}
                     />
 

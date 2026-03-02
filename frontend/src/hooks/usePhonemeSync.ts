@@ -1,9 +1,10 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import type { PhonemeFrame } from '../types/phoneme.types';
 import { LipSyncSystem } from '../systems/LipSyncSystem';
+import type { ConversationState } from '../systems/ConversationStateMachine';
 
-export const usePhonemeSync = (isPlaying: boolean, getAudioTime: () => number) => {
+export const usePhonemeSync = (systemState: ConversationState, getAudioTime: () => number) => {
     const systemRef = useRef<LipSyncSystem>(new LipSyncSystem());
     const queueRef = useRef<PhonemeFrame[]>([]);
 
@@ -18,50 +19,54 @@ export const usePhonemeSync = (isPlaying: boolean, getAudioTime: () => number) =
 
     const pushPhonemes = useCallback((frames: PhonemeFrame[]) => {
         queueRef.current.push(...frames);
-
-        // Lock in the anchor start time allowing frame interpolation sequentially
-        if (startAudioTimeRef.current === null && isPlaying) {
-            startAudioTimeRef.current = getAudioTime();
-        }
-    }, [isPlaying, getAudioTime]);
+    }, []);
 
     const clearQueue = useCallback(() => {
         queueRef.current = [];
         startAudioTimeRef.current = null;
-        systemRef.current.resetToNeutral(1.0);
+        systemRef.current.resetToNeutral(1.0); // hard reset on explicit clears (interruptions)
     }, []);
 
     // Frame synchronization hook called by R3F useFrame natively
     const update = useCallback((delta: number) => {
-        if (!isPlaying || queueRef.current.length === 0 || startAudioTimeRef.current === null) {
-            systemRef.current.resetToNeutral(10 * delta); // Smooth decay idle
+        if (systemState !== 'SPEAKING') {
+            // Constantly dampen and scrub out lingering variables when muted
+            systemRef.current.resetToNeutral(10 * delta);
+            startAudioTimeRef.current = null;
             return;
         }
 
         const currentTime = getAudioTime();
+
+        // Audio has begun but we haven't locked our timer bound mapping yet
+        if (startAudioTimeRef.current === null) {
+            if (currentTime <= 0) return; // Strict browser context silence
+            startAudioTimeRef.current = currentTime;
+        }
+
         const elapsed = currentTime - startAudioTimeRef.current;
 
-        // Locate current dominant localized phoneme
+        // Ensure we gracefully handle negative thresholds catching initialization bumps
+        // or moments where phoneme json arrives milliseconds prior to the audio buffering chunks
+        if (elapsed < 0 || queueRef.current.length === 0) {
+            systemRef.current.resetToNeutral(10 * delta);
+            return;
+        }
+
+        // Locate current dominant localized phoneme natively 
         const activeFrame = queueRef.current.find(f => elapsed >= f.start && elapsed <= f.end);
 
         if (activeFrame) {
-            // Apply frame intensely (0.5 lerp threshold scales well ~60fps capturing rapid clicks)
-            systemRef.current.applyPhoneme(activeFrame, 0.5);
+            // Apply frame intensely (e.g., lerp 15.0 scaled by delta tracks rapid clicks correctly visually)
+            systemRef.current.applyPhoneme(activeFrame, 15.0 * delta);
         } else {
-            // Cull trailing executed frames avoiding iteration limits inflating memory over time
+            // Cull securely pulling stale events from memory 
             queueRef.current = queueRef.current.filter(f => f.end > elapsed);
             if (queueRef.current.length === 0) {
                 systemRef.current.resetToNeutral(10 * delta);
             }
         }
-    }, [isPlaying, getAudioTime]);
-
-    // Handle abrupt audio stops natively
-    useEffect(() => {
-        if (!isPlaying) {
-            startAudioTimeRef.current = null;
-        }
-    }, [isPlaying]);
+    }, [systemState, getAudioTime]);
 
     return {
         initAvatarMesh,

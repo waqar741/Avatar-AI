@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import type { PhonemeFrame } from '../types/phoneme.types';
 
 // Ovrus Mapping: Rhubarb cues (A-H, X) -> Common Model Visemes
-// This aims strictly at universally styled humanoid formats
 const VisemeMap: Record<string, string> = {
     'A': 'viseme_PP',  // Closed mouth (P, B, M)
     'B': 'viseme_kk',  // Slightly open (K, S, T)
@@ -43,18 +42,21 @@ export class LipSyncSystem {
     public applyPhoneme(frame: PhonemeFrame, transitionFactor: number = 0.5) {
         if (!this.skinnedMesh) return;
 
-        // Reset state progressively prior to applying the new phoneme dominance
-        this.resetToNeutral(transitionFactor);
-
         const targetShape = VisemeMap[frame.value] || 'viseme_sil';
 
         if (this.hasMorphTargets && this.skinnedMesh.morphTargetDictionary) {
-            const index = this.skinnedMesh.morphTargetDictionary[targetShape];
-            if (index !== undefined && this.skinnedMesh.morphTargetInfluences) {
-                // Lerping the influence maintains visual smoothness 
-                this.skinnedMesh.morphTargetInfluences[index] +=
-                    (1.0 - this.skinnedMesh.morphTargetInfluences[index]) * transitionFactor;
-            }
+            Object.keys(this.skinnedMesh.morphTargetDictionary).forEach((key) => {
+                if (this.skinnedMesh?.morphTargetInfluences) {
+                    const idx = this.skinnedMesh.morphTargetDictionary[key];
+                    const targetValue = (key === targetShape) ? 1.0 : 0.0;
+                    // Lerp gracefully using independent delta multiplier rather than structural fixed frame jumps
+                    this.skinnedMesh.morphTargetInfluences[idx] = THREE.MathUtils.lerp(
+                        this.skinnedMesh.morphTargetInfluences[idx],
+                        targetValue,
+                        transitionFactor
+                    );
+                }
+            });
         }
 
         // Bone Rotational Fallback natively handling generic rigged heads without shapes
@@ -78,7 +80,11 @@ export class LipSyncSystem {
 
         if (this.hasMorphTargets && this.skinnedMesh.morphTargetInfluences) {
             for (let i = 0; i < this.skinnedMesh.morphTargetInfluences.length; i++) {
-                this.skinnedMesh.morphTargetInfluences[i] += (0.0 - this.skinnedMesh.morphTargetInfluences[i]) * transitionFactor;
+                this.skinnedMesh.morphTargetInfluences[i] = THREE.MathUtils.lerp(
+                    this.skinnedMesh.morphTargetInfluences[i],
+                    0.0,
+                    transitionFactor
+                );
             }
         }
 
