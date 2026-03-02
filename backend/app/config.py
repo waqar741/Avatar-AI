@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     max_connections: int = Field(default=100, alias="MAX_CONNECTIONS")
     ws_heartbeat_interval: int = Field(default=30, alias="WS_HEARTBEAT_INTERVAL")
+    
+    # LLM Service configurations
+    groq_model_name: str = Field(default="llama3-8b-8192", alias="GROQ_MODEL_NAME")
+    groq_timeout_seconds: int = Field(default=60, alias="GROQ_TIMEOUT_SECONDS")
+    max_tokens_per_session: int = Field(default=8000, alias="MAX_TOKENS_PER_SESSION")
+    max_tokens_per_request: int = Field(default=1000, alias="MAX_TOKENS_PER_REQUEST")
 
     model_config = SettingsConfigDict(
         env_file=".env",

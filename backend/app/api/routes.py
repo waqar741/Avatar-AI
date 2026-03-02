@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.models.schemas import HealthResponse
 from app.core.connection_manager import manager
 from app.core.lifecycle import APP_START_TIME
+from app.services.session_manager import session_manager
 
 router = APIRouter()
 
@@ -23,5 +24,7 @@ async def health_check() -> HealthResponse:
     return HealthResponse(
         status="ok",
         uptime_seconds=uptime,
-        active_connections=active
+        active_connections=active,
+        active_llm_requests=session_manager.active_llm_requests,
+        total_sessions_started=session_manager.total_sessions_started
     )

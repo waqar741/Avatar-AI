@@ -69,3 +69,12 @@ MAX_CONNECTIONS=100
 - `MAX_CONNECTIONS` explicitly caps WebSocket memory scaling to avoid unbounded memory growth.
 - Active websocket sessions hold a minimal footprint integer timestamp, averting high memory overhead per connection.
 - Strict graceful shutdown closes sockets to clear the operating system open-file resources safely.
+
+## LLM Streaming Architecture
+
+The LLM logic spans several bounded services avoiding monolithic routes:
+
+- **Session Control**: Tracking active connections, enforcing strict token consumption metrics, and eliminating runaway usage through the `SessionManager`. 
+- **Token Streaming Flow**: WebSockets transmit JSON structurally (`{type: "chat", message: "Hello"}`). A `StreamController` handles API isolation, mapping messages directly through the `GroqStreamingService`, and streaming out payload tokens (`{type: "token", content: "..."}`) sequentially.
+- **Memory Safeguards**: The API client reuses the `httpx.AsyncClient` from the global FastAPI lifespan pool. Streaming prevents full text buffering. Dropping an active connection mid-stream inherently invokes an `asyncio.CancelledError` inside the controller, releasing HTTPX sockets automatically.
+- **Cancellation Strategy**: Websocket disconnections inherently tear down task constraints without background leakages, guaranteeing predictable garbage collection matching 100% async Python capabilities.
