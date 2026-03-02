@@ -2,7 +2,7 @@ import React, { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Environment, ContactShadows } from '@react-three/drei';
 import { AvatarModel } from './AvatarModel';
-import { PhonemeFrame } from '../types/phoneme.types';
+import type { PhonemeFrame } from '../types/phoneme.types';
 
 interface AvatarCanvasProps {
     phonemes: PhonemeFrame[];

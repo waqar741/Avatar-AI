@@ -12,7 +12,7 @@ export class IdleAnimationSystem {
 
     public initialize(mesh: THREE.SkinnedMesh | THREE.Object3D) {
         // Fallback procedural targeting typically found in humanoid exports
-        mesh.traverse((child) => {
+        mesh.traverse((child: THREE.Object3D) => {
             if (child instanceof THREE.Bone) {
                 const name = child.name.toLowerCase();
                 if (name.includes('spine') || name.includes('root') || name.includes('hip')) {

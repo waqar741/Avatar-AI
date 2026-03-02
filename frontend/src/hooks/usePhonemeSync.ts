@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react';
 import * as THREE from 'three';
-import { PhonemeFrame } from '../types/phoneme.types';
+import type { PhonemeFrame } from '../types/phoneme.types';
 import { LipSyncSystem } from '../systems/LipSyncSystem';
 
 export const usePhonemeSync = (isPlaying: boolean, getAudioTime: () => number) => {

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PhonemeFrame } from '../types/phoneme.types';
+import type { PhonemeFrame } from '../types/phoneme.types';
 
 // Ovrus Mapping: Rhubarb cues (A-H, X) -> Common Model Visemes
 // This aims strictly at universally styled humanoid formats
@@ -31,7 +31,7 @@ export class LipSyncSystem {
 
         // Fallback search strictly bound by naming conventions generally applied to humanoid GLBs
         if (!this.hasMorphTargets || jawBoneName) {
-            mesh.skeleton.bones.forEach(bone => {
+            mesh.skeleton.bones.forEach((bone: THREE.Bone) => {
                 if (bone.name.toLowerCase().includes(jawBoneName || 'jaw')) {
                     this.jawBone = bone;
                     this.neutralRotation.copy(bone.quaternion);

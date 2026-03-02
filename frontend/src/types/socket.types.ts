@@ -1,6 +1,8 @@
+import type { PhonemeFrame } from './phoneme.types';
+
 export interface TokenMessage {
     type: 'token';
-    content: str;
+    content: string;
 }
 
 export interface AudioChunkMessage {

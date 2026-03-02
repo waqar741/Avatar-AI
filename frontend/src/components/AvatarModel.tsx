@@ -4,7 +4,7 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { usePhonemeSync } from '../hooks/usePhonemeSync';
 import { IdleAnimationSystem } from '../systems/IdleAnimationSystem';
-import { PhonemeFrame } from '../types/phoneme.types';
+import type { PhonemeFrame } from '../types/phoneme.types';
 
 // IMPORTANT: Requires physical avatar.glb presence in <public/avatars/avatar.glb> to circumvent network cross-domain limits
 const MODEL_URL = '/avatars/avatar.glb';
