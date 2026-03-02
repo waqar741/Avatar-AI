@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     tts_audio_chunk_size: int = Field(default=32768, alias="TTS_AUDIO_CHUNK_SIZE")
     tts_timeout_seconds: int = Field(default=30, alias="TTS_TIMEOUT_SECONDS")
 
+    # Rhubarb Lip Sync configurations
+    lipsync_enabled: bool = Field(default=True, alias="LIPSYNC_ENABLED")
+    lipsync_max_concurrent_processes: int = Field(default=5, alias="LIPSYNC_MAX_CONCURRENT_PROCESSES")
+    lipsync_timeout_seconds: int = Field(default=10, alias="LIPSYNC_TIMEOUT_SECONDS")
+    rhubarb_binary_path: str = Field(default="rhubarb", alias="RHUBARB_BINARY_PATH")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
