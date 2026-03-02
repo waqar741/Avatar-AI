@@ -13,8 +13,24 @@ class SessionState:
     """Lightweight representation of state variables on a per-socket basis."""
     def __init__(self) -> None:
         self.start_time: float = time.time()
+        self.last_activity: float = time.time()
         self.request_count: int = 0
         self.token_count: int = 0
+        
+    def is_expired(self) -> bool:
+        """Evaluate if the session exceeded maximum bounds or sat idle too long."""
+        current = time.time()
+        if current - self.start_time > settings.session_max_lifetime_seconds:
+            logger.warning("Session exceeded maximum lifetime constraint")
+            return True
+        if current - self.last_activity > settings.session_idle_timeout_seconds:
+            logger.warning("Session exceeded maximum idle boundary")
+            return True
+        return False
+        
+    def update_activity(self) -> None:
+        """Refresh the idle watchdog."""
+        self.last_activity = time.time()
 
 
 class SessionManager:
@@ -49,6 +65,7 @@ class SessionManager:
         session = self.get_session(websocket)
         if session:
             session.request_count += 1
+            session.update_activity()
 
     def charge_session_tokens(self, websocket: WebSocket, token_amount: int) -> bool:
         """

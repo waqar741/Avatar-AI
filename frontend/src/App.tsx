@@ -1,15 +1,16 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useAudioStream } from './hooks/useAudioStream';
 import { useMicrophone } from './hooks/useMicrophone';
 import { AvatarCanvas } from './components/AvatarCanvas';
 import { ChatUI } from './components/ChatUI';
 import { StatusIndicator } from './components/StatusIndicator';
-import { PhonemeFrame } from './types/phoneme.types';
-import { ServerMessage } from './types/socket.types';
+import type { PhonemeFrame } from './types/phoneme.types';
+import type { ServerMessage } from './types/socket.types';
 
 // Orchestration Layer
-import { ConversationStateMachine, ConversationState } from './systems/ConversationStateMachine';
+import { ConversationStateMachine } from './systems/ConversationStateMachine';
+import type { ConversationState } from './systems/ConversationStateMachine';
 import { SpeakingCoordinator } from './systems/SpeakingCoordinator';
 import { PerformanceMonitor } from './utils/performance';
 

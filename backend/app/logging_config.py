@@ -23,9 +23,11 @@ def setup_logging() -> None:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-    # Disable excessive Uvicorn access logs in production
+    # Disable excessive Uvicorn access logs and raise overall threshold in production
     if settings.is_production:
+        logger.setLevel(logging.WARNING)
         logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+        logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 
     logging.info(
         "Logging configured",

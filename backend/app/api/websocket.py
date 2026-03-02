@@ -10,6 +10,7 @@ from app.config import settings
 from app.services.session_manager import session_manager
 from app.services.groq_service import GroqStreamingService
 from app.services.stream_controller import StreamController
+from app.core.security import ws_rate_limiter
 from app.models.chat_models import WSIncomingMessage, WSOutgoingMessage
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,15 @@ async def websocket_avatar_endpoint(websocket: WebSocket) -> None:
                     continue
                 
                 if payload.type == "chat" and payload.message:
+                    # Enforce Strict Security Limit explicitly
+                    client_ip = websocket.client.host if websocket.client else "unknown"
+                    if not ws_rate_limiter.is_allowed(client_ip):
+                         logger.warning(f"Rate limit exceeded (messages/min) for IP {client_ip}")
+                         await websocket.send_text(
+                             WSOutgoingMessage.error("Rate limit exceeded. Please slow down.").model_dump_json()
+                         )
+                         continue
+                         
                     # Explicit await protects connection scope memory limits
                     await stream_controller.handle_stream(payload.message)
                 elif payload.type == "ping":

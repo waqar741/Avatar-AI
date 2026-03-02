@@ -44,18 +44,18 @@ export class LipSyncSystem {
 
         const targetShape = VisemeMap[frame.value] || 'viseme_sil';
 
-        if (this.hasMorphTargets && this.skinnedMesh.morphTargetDictionary) {
+        if (this.hasMorphTargets && this.skinnedMesh.morphTargetDictionary && this.skinnedMesh.morphTargetInfluences) {
             Object.keys(this.skinnedMesh.morphTargetDictionary).forEach((key) => {
-                if (this.skinnedMesh?.morphTargetInfluences) {
-                    const idx = this.skinnedMesh.morphTargetDictionary[key];
-                    const targetValue = (key === targetShape) ? 1.0 : 0.0;
-                    // Lerp gracefully using independent delta multiplier rather than structural fixed frame jumps
-                    this.skinnedMesh.morphTargetInfluences[idx] = THREE.MathUtils.lerp(
-                        this.skinnedMesh.morphTargetInfluences[idx],
-                        targetValue,
-                        transitionFactor
-                    );
-                }
+                const dict = this.skinnedMesh!.morphTargetDictionary!;
+                const influences = this.skinnedMesh!.morphTargetInfluences!;
+                const idx = dict[key];
+                const targetValue = (key === targetShape) ? 1.0 : 0.0;
+                // Lerp gracefully using independent delta multiplier rather than structural fixed frame jumps
+                influences[idx] = THREE.MathUtils.lerp(
+                    influences[idx],
+                    targetValue,
+                    transitionFactor
+                );
             });
         }
 

@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from fastapi import FastAPI
 
+from app.config import settings
 from app.core.connection_manager import manager
 from app.logging_config import setup_logging
 
@@ -34,7 +35,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     yield
     
-    logger.info("Application shutting down")
-    await app.state.http_client.aclose()
+    logger.info("Application shutting down. Initiating Graceful Resource Flush.")
     await manager.close_all()
-    logger.info("Shutdown complete")
+    await app.state.http_client.aclose()
+    
+    shutdown_duration = time.time() - APP_START_TIME
+    logger.info("Shutdown complete.", extra={"uptime_seconds": round(shutdown_duration, 2)})

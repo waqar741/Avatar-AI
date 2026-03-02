@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class GroqStreamingService:
-    """Consumes the Groq completions API yielding granular tokens to avert memory buildup."""
+    """Consumes any OpenAI-compatible completions API yielding granular tokens to avert memory buildup."""
     
     def __init__(self, http_client: httpx.AsyncClient):
         """
@@ -23,9 +23,8 @@ class GroqStreamingService:
         self.api_key = settings.groq_api_key
         self.model = settings.groq_model_name
         self.timeout = settings.groq_timeout_seconds
-        # Warning: ensure your API key points directly to Groq. 
-        # Using typical OpenAI compatible structure.
-        self.url = "https://api.groq.com/openai/v1/chat/completions"
+        # Configurable base URL: supports Groq, custom OpenAI-compatible APIs, etc.
+        self.url = f"{settings.llm_base_url.rstrip('/')}/chat/completions"
 
     async def stream_completion(self, message: str) -> AsyncGenerator[str, None]:
         """
@@ -55,8 +54,8 @@ class GroqStreamingService:
                 if response.status_code != 200:
                     error_body = await response.aread()
                     logger.error(
-                        "Groq API Error", 
-                        extra={"status": response.status_code, "body": error_body.decode('utf-8', errors='ignore')}
+                        "LLM API Error", 
+                        extra={"status": response.status_code, "body": error_body.decode('utf-8', errors='ignore'), "url": self.url}
                     )
                     raise RuntimeError(f"LLM Provider Error: HTTP {response.status_code}")
                 
@@ -75,12 +74,12 @@ class GroqStreamingService:
                                 if delta:
                                     yield delta
                         except json.JSONDecodeError:
-                            logger.debug("Failed to decode JSON chunk from Groq API", extra={"chunk": data_str})
+                            logger.debug("Failed to decode JSON chunk from LLM API", extra={"chunk": data_str})
                             continue
                             
         except httpx.TimeoutException as e:
-            logger.error("Groq API Timeout encountered", extra={"error": str(e)})
+            logger.error("LLM API Timeout encountered", extra={"error": str(e), "url": self.url})
             raise RuntimeError("LLM Request Timeout") from e
         except Exception as e:
-            logger.error("Unexpected error interacting with Groq API", exc_info=True)
+            logger.error("Unexpected error interacting with LLM API", exc_info=True)
             raise

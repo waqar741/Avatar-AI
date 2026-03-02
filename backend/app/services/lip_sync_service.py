@@ -76,7 +76,14 @@ class RhubarbLipSyncService:
                         })
                         return []
                         
-                    return PhonemeParser.parse_rhubarb_json(stdout_data.decode('utf-8'))
+                    frames = PhonemeParser.parse_rhubarb_json(stdout_data.decode('utf-8'))
+                    
+                    # Memory Guard against massive outputs
+                    if len(frames) > settings.max_phoneme_frames_per_flush:
+                        logger.warning("Truncated excessive phoneme frames natively", extra={"original": len(frames)})
+                        frames = frames[:settings.max_phoneme_frames_per_flush]
+                        
+                    return frames
                     
                 except asyncio.TimeoutError:
                     process.kill()

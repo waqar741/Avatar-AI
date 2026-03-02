@@ -22,11 +22,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan
     )
 
-    # Configure CORS - strict in production
-    allowed_origins = [
-        "http://localhost:3000",
-        "http://localhost:8080"
-    ] if settings.is_production else ["*"]
+    # Configure CORS - strict bounds loaded from environment
+    allowed_origins = settings.allowed_origins
 
     app.add_middleware(
         CORSMiddleware,

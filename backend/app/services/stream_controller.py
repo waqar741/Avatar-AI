@@ -1,4 +1,5 @@
 """Controller mediating WebSockets, LLM Services, and TTS Streaming Pipelines."""
+import time
 import asyncio
 import logging
 from fastapi import WebSocket
@@ -56,9 +57,12 @@ class StreamController:
 
             # Dispatch Phoneme synchronization computation entirely decoupled from the UI audio delay
             if self.lipsync_service and len(full_audio_bytes) > 0:
-                task = asyncio.create_task(self._process_lip_sync(bytes(full_audio_bytes)))
-                self.pending_lipsync_tasks.add(task)
-                task.add_done_callback(self.pending_lipsync_tasks.discard)
+                if len(self.pending_lipsync_tasks) >= settings.max_audio_queue_length:
+                    logger.warning("Dropping phonetic sync task due to queue saturation natively")
+                else:
+                    task = asyncio.create_task(self._process_lip_sync(bytes(full_audio_bytes)))
+                    self.pending_lipsync_tasks.add(task)
+                    task.add_done_callback(self.pending_lipsync_tasks.discard)
 
         except asyncio.CancelledError:
             logger.warning("TTS generation was cancelled rapidly mid-flight")
@@ -89,14 +93,25 @@ class StreamController:
         Args:
             message: Raw user payload to send to inference.
         """
+        session_state = session_manager.get_session(self.websocket)
+        if session_state and session_state.is_expired():
+            raise RuntimeError("Session timeout exceeded. Please reconnect.")
+
         session_manager.record_request(self.websocket)
         logger.debug("Starting LLM stream forwarding")
         
         session_manager.active_llm_requests += 1
+        request_start_time = time.time()
+        
         try:
             generator = self.groq_service.stream_completion(message)
             
             async for token in generator:
+                # 1. Enforce LLM execution time ceilings bounds
+                if time.time() - request_start_time > settings.max_request_duration_seconds:
+                    logger.warning("Max request duration exceeded. Cancelling bounds securely.")
+                    await self.websocket.send_text(WSOutgoingMessage.error("Request generation timed out.").model_dump_json())
+                    break
                 if not session_manager.charge_session_tokens(self.websocket, 1):
                     await self.websocket.send_text(
                         WSOutgoingMessage.error("Session token limits reached. Generation halted.").model_dump_json()
