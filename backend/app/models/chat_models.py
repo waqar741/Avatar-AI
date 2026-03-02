@@ -11,14 +11,25 @@ class WSIncomingMessage(BaseModel):
 
 class WSOutgoingMessage(BaseModel):
     """Schema for structuring outgoing token streams and events to the client."""
-    type: Literal["token", "done", "error", "heartbeat"] = Field(..., description="The type of the event")
+    type: Literal["token", "audio_chunk", "audio_done", "done", "error", "heartbeat"] = Field(..., description="The type of the event")
     content: Optional[str] = Field(None, description="The partial text token or response content")
+    data: Optional[str] = Field(None, description="Base64 encoded payload for binary arrays")
     message: Optional[str] = Field(None, description="Detailed text description for error events")
 
     @classmethod
     def token(cls, text: str) -> "WSOutgoingMessage":
         """Utility for creating a token chunk payload."""
         return cls(type="token", content=text)
+
+    @classmethod
+    def audio_chunk(cls, b64_data: str) -> "WSOutgoingMessage":
+        """Utility for creating an audio payload from base64 string."""
+        return cls(type="audio_chunk", data=b64_data)
+
+    @classmethod
+    def audio_done(cls) -> "WSOutgoingMessage":
+        """Utility for signaling the TTS generation is complete."""
+        return cls(type="audio_done")
 
     @classmethod
     def done(cls) -> "WSOutgoingMessage":

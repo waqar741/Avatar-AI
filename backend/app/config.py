@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     max_tokens_per_session: int = Field(default=8000, alias="MAX_TOKENS_PER_SESSION")
     max_tokens_per_request: int = Field(default=1000, alias="MAX_TOKENS_PER_REQUEST")
 
+    # TTS configurations
+    tts_enabled: bool = Field(default=True, alias="TTS_ENABLED")
+    tts_voice: str = Field(default="en-US-AriaNeural", alias="TTS_VOICE")
+    tts_max_buffer_chars: int = Field(default=150, alias="TTS_MAX_BUFFER_CHARS")
+    tts_audio_chunk_size: int = Field(default=32768, alias="TTS_AUDIO_CHUNK_SIZE")
+    tts_timeout_seconds: int = Field(default=30, alias="TTS_TIMEOUT_SECONDS")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

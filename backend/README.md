@@ -78,3 +78,24 @@ The LLM logic spans several bounded services avoiding monolithic routes:
 - **Token Streaming Flow**: WebSockets transmit JSON structurally (`{type: "chat", message: "Hello"}`). A `StreamController` handles API isolation, mapping messages directly through the `GroqStreamingService`, and streaming out payload tokens (`{type: "token", content: "..."}`) sequentially.
 - **Memory Safeguards**: The API client reuses the `httpx.AsyncClient` from the global FastAPI lifespan pool. Streaming prevents full text buffering. Dropping an active connection mid-stream inherently invokes an `asyncio.CancelledError` inside the controller, releasing HTTPX sockets automatically.
 - **Cancellation Strategy**: Websocket disconnections inherently tear down task constraints without background leakages, guaranteeing predictable garbage collection matching 100% async Python capabilities.
+
+## Real-Time Audio Streaming Architecture
+
+The system features an advanced Text-to-Speech (TTS) pipeline powered by `edge-tts`. Operating completely asynchronously, it ensures 8GB cloud droplets can orchestrate numerous concurrent voice sessions natively:
+
+1. **Token Processing**: Raw tokens produced by Groq are appended to the `AudioStreamBuffer`.
+2. **Buffering**: To prevent microscopic and stuttering audio fragments, the buffer evaluates punctuation regex boundaries (e.g. `.` `?` `!`) or length capacity caps (`TTS_MAX_BUFFER_CHARS`).
+3. **TTS Service**: Flushed logical text blocks stream sequentially into `EdgeTTSService` mapped cleanly via a context boundary.
+4. **Chunking**: Transcoded PCM byte streams route into `AudioChunkEncoder`, splitting binary mass sizes consistently to 32KB payload limits natively supported by Websockets.
+5. **Base64 WebSocket Packaging**: Fully formed `AudioChunkEncoder` output wraps into JSON as Base64. 
+
+This layout inherently circumvents storing disk variables, loading full `.wav` files into finite RAM constraints, or executing multi-process delays.
+
+### WebSocket Protocol Types
+- `{ "type": "chat", "message": "query" }` - Inbound textual trigger.
+- `{ "type": "ping" }` - Maintain lifecycle heartbeat.
+- `{ "type": "token", "content": "xyz" }` - Outbound partial LLM token.
+- `{ "type": "audio_chunk", "data": "base64==" }` - Outbound audio PCM chunk frame.
+- `{ "type": "audio_done" }` - Signals backend finished yielding audio entirely.
+- `{ "type": "done" }` - Signals backend finished text tokens.
+- `{ "type": "error", "message": "..." }` - Pipeline halt exceptions cleanly communicated to interface.
