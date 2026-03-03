@@ -1,15 +1,17 @@
 /** Normalized face parameters driving all procedural geometry. */
 export interface FaceParams {
-    mouthOpen: number;     // 0–1
-    mouthWide: number;     // 0–1
-    mouthRound: number;    // 0–1
-    blink: number;         // 0–1 (1 = fully closed)
-    browRaise: number;     // -1 (furrowed) to 1 (raised)
-    headTiltX: number;     // radians (nod)
-    headTiltZ: number;     // radians (side tilt)
-    idleBreath: number;    // 0–1 (scale oscillation)
-    eyeFocusX: number;     // -1 to 1 (horizontal gaze)
-    eyeFocusY: number;     // -1 to 1 (vertical gaze)
+    mouthOpen: number;       // 0–1
+    mouthWide: number;       // 0–1
+    mouthRound: number;      // 0–1
+    blink: number;           // 0–1 (1 = fully closed)
+    browRaise: number;       // -1 (furrowed) to 1 (raised)
+    browAsymmetry: number;   // -1 to 1 (left higher vs right higher)
+    headTiltX: number;       // radians (nod)
+    headTiltY: number;       // radians (yaw / turn)
+    headTiltZ: number;       // radians (side tilt)
+    idleBreath: number;      // 0–1 (scale oscillation)
+    eyeFocusX: number;       // -1 to 1 (horizontal gaze)
+    eyeFocusY: number;       // -1 to 1 (vertical gaze)
 }
 
 /** Factory for default neutral parameters. */
@@ -20,7 +22,9 @@ export function createNeutralParams(): FaceParams {
         mouthRound: 0,
         blink: 0,
         browRaise: 0,
+        browAsymmetry: 0,
         headTiltX: 0,
+        headTiltY: 0,
         headTiltZ: 0,
         idleBreath: 0,
         eyeFocusX: 0,
@@ -37,7 +41,9 @@ export function lerpParams(a: FaceParams, b: FaceParams, t: number): FaceParams 
         mouthRound: a.mouthRound + (b.mouthRound - a.mouthRound) * clamped,
         blink: a.blink + (b.blink - a.blink) * clamped,
         browRaise: a.browRaise + (b.browRaise - a.browRaise) * clamped,
+        browAsymmetry: a.browAsymmetry + (b.browAsymmetry - a.browAsymmetry) * clamped,
         headTiltX: a.headTiltX + (b.headTiltX - a.headTiltX) * clamped,
+        headTiltY: a.headTiltY + (b.headTiltY - a.headTiltY) * clamped,
         headTiltZ: a.headTiltZ + (b.headTiltZ - a.headTiltZ) * clamped,
         idleBreath: a.idleBreath + (b.idleBreath - a.idleBreath) * clamped,
         eyeFocusX: a.eyeFocusX + (b.eyeFocusX - a.eyeFocusX) * clamped,

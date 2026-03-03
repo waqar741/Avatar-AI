@@ -15,11 +15,17 @@ export class FaceAnimationController {
     private phonemeMapper = new PhonemeMapper();
     private expressionBlender = new ExpressionBlender();
 
-    // Idle subsystems
+    // Timing
     private elapsedTime = 0;
+
+    // Blink subsystem
     private nextBlinkAt = 3 + Math.random() * 3;
     private blinkTimer = 0;
     private isBlinking = false;
+
+    // Thinking state tracking — for staggered entry timing
+    private thinkingElapsed = 0;
+    private wasThinking = false;
 
     // Phoneme queue tracking
     private phonemeQueue: PhonemeFrame[] = [];
@@ -48,6 +54,17 @@ export class FaceAnimationController {
     public update(delta: number, state: ConversationState, audioTime: number): void {
         this.elapsedTime += delta;
 
+        // Track thinking-state elapsed time for staggered cognitive drift
+        if (state === 'THINKING') {
+            this.thinkingElapsed += delta;
+            this.wasThinking = true;
+        } else {
+            if (this.wasThinking) {
+                this.thinkingElapsed = 0;
+                this.wasThinking = false;
+            }
+        }
+
         // 1. Update phoneme tracking
         this.updatePhonemeTracking(state, audioTime);
 
@@ -61,9 +78,10 @@ export class FaceAnimationController {
         const blendedParams = this.expressionBlender.update(delta, phonemeParams);
 
         // 5. Layer autonomous behaviors on top
-        this.updateBlink(delta, blendedParams);
-        this.updateIdleBreathing(delta, blendedParams);
-        this.updateMicroMovement(delta, state, blendedParams);
+        this.updateBlink(delta, state, blendedParams);
+        this.updateIdleBreathing(blendedParams);
+        this.updateMicroMovement(state, blendedParams);
+        this.updateThinkingCognitiveDrift(state, blendedParams);
 
         // 6. Store final params
         this.params = blendedParams;
@@ -98,17 +116,21 @@ export class FaceAnimationController {
         const frame = this.phonemeQueue.find(f => elapsed >= f.start && elapsed <= f.end);
         if (frame) {
             this.activePhoneme = frame.value;
+            // console.log(`[LipSync] Found active phoneme ${frame.value} for elapsed time ${elapsed.toFixed(3)}s`);
         } else {
             // Purge stale frames
+            const originalLength = this.phonemeQueue.length;
             this.phonemeQueue = this.phonemeQueue.filter(f => f.end > elapsed);
+            if (originalLength !== this.phonemeQueue.length && this.phonemeQueue.length > 0) {
+                // console.log(`[LipSync] Purged ${originalLength - this.phonemeQueue.length} stale frames. Next frame starts at ${this.phonemeQueue[0].start}s`);
+            }
             if (this.phonemeQueue.length === 0) {
                 this.activePhoneme = 'X';
             }
         }
     }
 
-    private updateBlink(delta: number, params: FaceParams): void {
-        // Autonomous blink every 3–6 seconds
+    private updateBlink(delta: number, state: ConversationState, params: FaceParams): void {
         this.blinkTimer += delta;
 
         if (!this.isBlinking && this.blinkTimer >= this.nextBlinkAt) {
@@ -121,34 +143,76 @@ export class FaceAnimationController {
             const blinkDuration = 0.15;
             const progress = this.blinkTimer / blinkDuration;
             if (progress < 0.5) {
-                params.blink = progress * 2; // 0 → 1
+                params.blink = progress * 2;
             } else if (progress < 1.0) {
-                params.blink = (1 - progress) * 2; // 1 → 0
+                params.blink = (1 - progress) * 2;
             } else {
                 params.blink = 0;
                 this.isBlinking = false;
                 this.blinkTimer = 0;
-                this.nextBlinkAt = 3 + Math.random() * 3;
+                // Thinking: longer blink intervals (4–8s) — focused concentration
+                // Idle: normal intervals (3–6s)
+                if (state === 'THINKING') {
+                    this.nextBlinkAt = 4 + Math.random() * 4;
+                } else {
+                    this.nextBlinkAt = 3 + Math.random() * 3;
+                }
             }
         }
     }
 
-    private updateIdleBreathing(_delta: number, params: FaceParams): void {
+    private updateIdleBreathing(params: FaceParams): void {
         // Gentle sine-wave breathing scaled by the blend's idleBreath weight
-        const breathCycle = Math.sin(this.elapsedTime * 1.5) * 0.5 + 0.5; // 0–1
-        params.idleBreath = breathCycle * params.idleBreath; // Modulate by blended weight
+        const breathCycle = Math.sin(this.elapsedTime * 1.5) * 0.5 + 0.5;
+        params.idleBreath = breathCycle * params.idleBreath;
     }
 
-    private updateMicroMovement(_delta: number, state: ConversationState, params: FaceParams): void {
+    private updateMicroMovement(state: ConversationState, params: FaceParams): void {
         // Very subtle procedural head micro-movement for organic feel
-        const intensity = (state === 'SPEAKING' || state === 'THINKING') ? 0.3 : 1.0;
-        params.headTiltX += Math.sin(this.elapsedTime * 0.7) * 0.015 * intensity + params.headTiltX;
-        params.headTiltZ += Math.sin(this.elapsedTime * 0.5 + 1.0) * 0.01 * intensity + params.headTiltZ;
+        // Reduced during speaking/thinking since those states have their own motion
+        if (state === 'SPEAKING' || state === 'THINKING') return;
+
+        const t = this.elapsedTime;
+        params.headTiltX += Math.sin(t * 0.7) * 0.012;
+        params.headTiltZ += Math.sin(t * 0.5 + 1.0) * 0.008;
 
         // Subtle eye wander during idle
         if (state === 'IDLE') {
-            params.eyeFocusX = Math.sin(this.elapsedTime * 0.3) * 0.08;
-            params.eyeFocusY = Math.cos(this.elapsedTime * 0.4 + 0.5) * 0.05;
+            params.eyeFocusX += Math.sin(t * 0.3) * 0.06;
+            params.eyeFocusY += Math.cos(t * 0.4 + 0.5) * 0.04;
         }
+    }
+
+    /**
+     * Thinking-specific cognitive micro-drift.
+     * Low-frequency sinusoidal overlays that layer on top of the
+     * ExpressionBlender's THINKING_PRESET base values.
+     *
+     * Design intent:
+     * - Eye gaze drifts subtly around the upper-right quadrant (not fixed)
+     * - Head oscillates very slowly around the tilt position
+     * - Brow asymmetry has micro-variation
+     * - All driven by elapsed time, no randomness spikes
+     */
+    private updateThinkingCognitiveDrift(state: ConversationState, params: FaceParams): void {
+        if (state !== 'THINKING') return;
+
+        const t = this.thinkingElapsed;
+
+        // Smooth entry ramp: 0→1 over ~400ms for natural onset
+        const entryRamp = Math.min(1, t * 2.5);
+
+        // Eye micro-drift around the preset upper-right gaze position
+        // Very low frequency (0.4–0.6 Hz) for deliberate, not jittery, feel
+        params.eyeFocusX += Math.sin(t * 0.4) * 0.04 * entryRamp;
+        params.eyeFocusY += Math.sin(t * 0.55 + 0.8) * 0.03 * entryRamp;
+
+        // Head micro-oscillation — slow, deliberate
+        params.headTiltZ += Math.sin(t * 0.3 + 0.5) * 0.008 * entryRamp;
+        params.headTiltY += Math.sin(t * 0.25) * 0.006 * entryRamp;
+        params.headTiltX += Math.sin(t * 0.35 + 1.2) * 0.005 * entryRamp;
+
+        // Brow asymmetry micro-variation — very subtle living detail
+        params.browAsymmetry += Math.sin(t * 0.5 + 2.0) * 0.05 * entryRamp;
     }
 }

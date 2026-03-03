@@ -8,7 +8,10 @@ interface EyebrowsProps {
 
 /**
  * Procedural eyebrows using thin curved tube meshes.
- * Expression driven by browRaise rotation.
+ * Expression driven by browRaise rotation + browAsymmetry for per-brow offset.
+ *
+ * browAsymmetry > 0: right brow raised higher (concentration/curiosity)
+ * browAsymmetry < 0: left brow raised higher
  */
 export const Eyebrows: React.FC<EyebrowsProps> = ({ params }) => {
     const browMat = useMemo(() => new THREE.MeshStandardMaterial({
@@ -26,9 +29,21 @@ export const Eyebrows: React.FC<EyebrowsProps> = ({ params }) => {
         return new THREE.TubeGeometry(curve, 8, 0.008, 6, false);
     }, []);
 
-    // Brow rotation: positive browRaise = raised, negative = furrowed
-    const browRotation = params.browRaise * 0.15;
-    const browY = 0.16 + params.browRaise * 0.02;
+    // Base symmetric brow values
+    const baseBrowRotation = params.browRaise * 0.15;
+    const baseBrowY = 0.16 + params.browRaise * 0.02;
+
+    // Asymmetry offsets: positive asymmetry → right brow higher
+    const asymOffset = params.browAsymmetry * 0.012;     // Y position offset
+    const asymRotation = params.browAsymmetry * 0.06;     // rotation offset
+
+    // Left brow: lower when asymmetry is positive (right-dominant)
+    const leftY = baseBrowY - asymOffset;
+    const leftRotation = baseBrowRotation - asymRotation;
+
+    // Right brow: higher when asymmetry is positive
+    const rightY = baseBrowY + asymOffset;
+    const rightRotation = -(baseBrowRotation + asymRotation);
 
     return (
         <group>
@@ -36,16 +51,16 @@ export const Eyebrows: React.FC<EyebrowsProps> = ({ params }) => {
             <mesh
                 geometry={browCurve}
                 material={browMat}
-                position={[-0.1, browY, 0.28]}
-                rotation={[0, 0, browRotation]}
+                position={[-0.1, leftY, 0.28]}
+                rotation={[0, 0, leftRotation]}
             />
 
-            {/* Right eyebrow (mirrored rotation) */}
+            {/* Right eyebrow */}
             <mesh
                 geometry={browCurve}
                 material={browMat}
-                position={[0.1, browY, 0.28]}
-                rotation={[0, 0, -browRotation]}
+                position={[0.1, rightY, 0.28]}
+                rotation={[0, 0, rightRotation]}
             />
         </group>
     );

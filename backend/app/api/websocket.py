@@ -8,7 +8,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.core.connection_manager import manager
 from app.config import settings
 from app.services.session_manager import session_manager
-from app.services.groq_service import GroqStreamingService
+from app.services.llm_service import LLMStreamingService
 from app.services.stream_controller import StreamController
 from app.core.security import ws_rate_limiter
 from app.models.chat_models import WSIncomingMessage, WSOutgoingMessage
@@ -31,8 +31,8 @@ async def websocket_avatar_endpoint(websocket: WebSocket) -> None:
     
     # Isolate services specifically for this websocket request lifecycle context
     http_client = websocket.app.state.http_client
-    groq_service = GroqStreamingService(http_client)
-    stream_controller = StreamController(websocket, groq_service)
+    llm_service = LLMStreamingService(http_client)
+    stream_controller = StreamController(websocket, llm_service)
 
     try:
         await websocket.send_text(WSOutgoingMessage.token("Connected to Streaming API").model_dump_json())

@@ -105,7 +105,7 @@ export const FaceGeometry: React.FC<FaceGeometryProps> = ({ params }) => {
 
     return (
         <group
-            rotation={[params.headTiltX, 0, params.headTiltZ]}
+            rotation={[params.headTiltX, params.headTiltY, params.headTiltZ]}
             scale={[breathScale, breathScale, breathScale]}
         >
             {/* Main cranium */}

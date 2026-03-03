@@ -6,7 +6,7 @@ from fastapi import WebSocket
 
 from app.config import settings
 from app.services.session_manager import session_manager
-from app.services.groq_service import GroqStreamingService
+from app.services.llm_service import LLMStreamingService
 from app.services.tts_service import EdgeTTSService
 from app.services.audio_stream_buffer import AudioStreamBuffer
 from app.services.audio_chunk_encoder import AudioChunkEncoder
@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 class StreamController:
     """Coordinates message propagation, tracking LLM state, dual audio-text streaming, and isolating socket errors."""
 
-    def __init__(self, websocket: WebSocket, groq_service: GroqStreamingService):
+    def __init__(self, websocket: WebSocket, llm_service: LLMStreamingService):
         """Inject websocket capabilities and downstream completion/speech services."""
         self.websocket = websocket
-        self.groq_service = groq_service
+        self.llm_service = llm_service
         
         # Audio orchestration mechanics initialized per session request
         self.tts_service = EdgeTTSService() if settings.tts_enabled else None
@@ -104,7 +104,7 @@ class StreamController:
         request_start_time = time.time()
         
         try:
-            generator = self.groq_service.stream_completion(message)
+            generator = self.llm_service.stream_completion(message)
             
             async for token in generator:
                 # 1. Enforce LLM execution time ceilings bounds

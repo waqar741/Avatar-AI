@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Application starting up")
     
     # Initialize shared Async HTTP client with strict timeouts
-    timeout = httpx.Timeout(settings.groq_timeout_seconds, connect=10.0)
+    timeout = httpx.Timeout(settings.llm_timeout_seconds, connect=10.0)
     limits = httpx.Limits(max_keepalive_connections=settings.max_connections, max_connections=settings.max_connections)
     # Using context guard explicitly without 'async with' scoping out before yield
     app.state.http_client = httpx.AsyncClient(timeout=timeout, limits=limits)

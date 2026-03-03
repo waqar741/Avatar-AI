@@ -9,7 +9,6 @@ class Settings(BaseSettings):
     env: str = Field(default="development", alias="ENV")
     host: str = Field(default="0.0.0.0", alias="HOST")
     port: int = Field(default=8000, alias="PORT")
-    groq_api_key: str = Field(..., alias="GROQ_API_KEY")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     max_connections: int = Field(default=100, alias="MAX_CONNECTIONS")
     ws_heartbeat_interval: int = Field(default=30, alias="WS_HEARTBEAT_INTERVAL")
@@ -22,11 +21,12 @@ class Settings(BaseSettings):
     session_idle_timeout_seconds: int = Field(default=300, alias="SESSION_IDLE_TIMEOUT_SECONDS")
     
     # LLM Service configurations
-    groq_model_name: str = Field(default="llama3-8b-8192", alias="GROQ_MODEL_NAME")
-    groq_timeout_seconds: int = Field(default=60, alias="GROQ_TIMEOUT_SECONDS")
-    llm_base_url: str = Field(default="https://api.groq.com/openai/v1", alias="LLM_BASE_URL")
+    llm_base_url: str = Field(default="https://ai.nomineelife.com", alias="LLM_BASE_URL")
+    llm_model: str = Field(default="", alias="LLM_MODEL")
+    llm_timeout_seconds: int = Field(default=60, alias="LLM_TIMEOUT_SECONDS")
+    llm_api_key: str = Field(default="", alias="LLM_API_KEY")
+    llm_max_tokens_per_request: int = Field(default=1000, alias="LLM_MAX_TOKENS_PER_REQUEST")
     max_tokens_per_session: int = Field(default=8000, alias="MAX_TOKENS_PER_SESSION")
-    max_tokens_per_request: int = Field(default=1000, alias="MAX_TOKENS_PER_REQUEST")
     max_request_duration_seconds: int = Field(default=60, alias="MAX_REQUEST_DURATION_SECONDS")
 
     # TTS configurations
@@ -58,15 +58,13 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_environment(self) -> 'Settings':
         """Enforce hard limits on boot."""
-        # Validate API Key is present (not empty)
-        if not self.groq_api_key or len(self.groq_api_key.strip()) < 5:
-            raise ValueError("GROQ_API_KEY is missing or too short. Provide a valid LLM API key.")
+        # Validate LLM base URL is configured
+        if not self.llm_base_url or not self.llm_base_url.startswith("http"):
+            raise ValueError("LLM_BASE_URL is missing or invalid. Must be a valid HTTP(S) URL.")
             
         # Validate Rhubarb Binary
         if self.lipsync_enabled:
-            # Check if binary is resolvable in path or explicitly exists
             binary_exists = shutil.which(self.rhubarb_binary_path) is not None or os.path.exists(self.rhubarb_binary_path)
-            # In local dev users might provide a path relative to root, if neither works fail fast
             if not binary_exists:
                 raise ValueError(f"CRITICAL: Rhubarb binary not found at '{self.rhubarb_binary_path}'")
                 
